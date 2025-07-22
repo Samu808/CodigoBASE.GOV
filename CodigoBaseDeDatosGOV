@@ -7,6 +7,10 @@ url = 'https://raw.githubusercontent.com/JuanJDCR/For-i-in-datacraks/refs/heads/
 data = pd.read_csv(url)
 data
 
+
+#1). LIMPIEZA DE DATOS!!
+
+
 #Eliminamos todos los NA
 data = data.dropna()
 data.info()
@@ -228,7 +232,7 @@ for z in columnas_numericas:
     print(f"La columna {df[i]} contiene valores numericos, mas especificamente valores tipo {df[i].dtype} ")
 #Con esto verificamos que las columnas numericas no tienen datos tipo object, asi que ya los podemos trabajar estadisticamente sin problema alguno.
 
-
+#2). GRAFICASSSSS 
 
 # Histograma para las variables numéricas
 
@@ -237,4 +241,211 @@ sns.histplot(df['AÑO_ENTRADA'], kde=True,)
 plt.title('Registro de entrada de Denuncias realizadas')
 plt.xlabel('Año de la denuncia')
 plt.ylabel('Numero de denuncias')
+plt.show()
+
+
+plt.figure(figsize=(8, 6))
+sns.boxplot(df['AÑO_ENTRADA'],)
+plt.title('Año en el que se realizó la denuncia')
+plt.ylabel('Año de la denuncia')
+plt.show()
+
+
+minimo = df['AÑO_ENTRADA'].min()
+#df['AÑO_ENTRADA'] = df['AÑO_ENTRADA'].replace(minimo, np.nan)
+conteo = df['AÑO_ENTRADA'].value_counts()
+print(conteo)
+
+
+#
+#¿Cuales son los municipios con mayores cantidades de casos activos e inactivos
+¿Cuales son los municipios con mayores cantidades de casos activos e inactivos
+
+dep_counts = (df.groupby(['DEPARTAMENTO_HECHO', 'ESTADO']).size().unstack(fill_value=0))
+
+# Ordenar para casos ACTIVOS e INACTIVOS
+top_dep_activos   = dep_counts.sort_values('Activo',  ascending=False)
+top_dep_inactivos = dep_counts.sort_values('Inactivo', ascending=False)
+
+top10 = dep_counts.sort_values('Inactivo', ascending=False).head(10)
+
+# Barras agrupadas
+fig, ax = plt.subplots(figsize=(10, 5))
+top10.plot(kind='bar', ax=ax)
+
+ax.set_title('Casos activos e inactivos por departamento (Top 10)')
+ax.set_ylabel('Cantidad de casos')
+ax.set_xlabel('Departamentos')
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+plt.show()
+
+
+#GRAFICA CON LAS ETAPAS DEL CASO
+
+value_counts = df['ETAPA_CASO'].value_counts()
+labels = value_counts.index
+sizes = value_counts.values
+total_casos = sum(sizes)
+
+legend_labels = [f'{label}: {size/total_casos*100 :.1f}%' for label, size in zip(labels, sizes)]
+
+plt.pie(sizes,pctdistance=1.2,radius=1.5, wedgeprops=dict(edgecolor='black', linewidth=1))
+plt.title('Distribucion de las Etapas de los casos ', backgroundcolor="0.4", color="1", ma='center')
+
+plt.legend(legend_labels,loc='best',bbox_to_anchor=(0.9, 0, 0.5, 1), title="Etapas del Caso")
+#plt.legend(autopct='%1.1f%%',loc='upper left')
+plt.show()
+
+
+
+#MAPA DE CALOR
+
+import pandas as pd
+import folium
+from folium.plugins import HeatMap
+from google.colab import files
+from google.colab import output
+import io
+
+# Limpiar nombres de departamentos
+df['DEPARTAMENTO_HECHO'] = df['DEPARTAMENTO_HECHO'].str.upper().str.strip()
+df['DEPARTAMENTO_HECHO'] = df['DEPARTAMENTO_HECHO'].replace({
+    'BOGOTÁ, D. C.': 'CUNDINAMARCA',
+    'ARCHIPIÉLAGO DE SAN ANDRÉS, PROVIDENCIA Y SANTA CATALINA': 'SAN ANDRÉS'
+})
+
+# Agrupar por departamento
+delitos_por_depto = df.groupby('DEPARTAMENTO_HECHO')['TOTAL_PROCESOS'].sum().reset_index()
+delitos_por_depto = delitos_por_depto.sort_values('TOTAL_PROCESOS', ascending=False)
+
+# Coordenadas de capitales departamentales
+depto_coords = {
+    'ANTIOQUIA': [6.2447, -75.5748],  # Medellín
+    'VALLE DEL CAUCA': [3.4372, -76.5225],  # Cali
+    'CUNDINAMARCA': [4.6097, -74.0817],  # Bogotá
+    'SANTANDER': [7.1193, -73.1227],  # Bucaramanga
+    'ATLÁNTICO': [10.9639, -74.7964],  # Barranquilla
+    'BOLÍVAR': [10.3997, -75.5144],  # Cartagena
+    'META': [4.1420, -73.6266],  # Villavicencio
+    'HUILA': [2.9345, -75.2809],  # Neiva
+    'TOLIMA': [4.4389, -75.2322],  # Ibagué
+    'NORTE DE SANTANDER': [7.9075, -72.5047],  # Cúcuta
+    'BOYACA': [5.5353, -73.3678],  # Tunja
+    'CAUCA': [2.4411, -76.6066],  # Popayán
+    'NARIÑO': [1.2136, -77.2811],  # Pasto
+    'CESAR': [10.4631, -73.2532],  # Valledupar
+    'MAGDALENA': [11.2408, -74.1990],  # Santa Marta
+    'CALDAS': [5.0689, -75.5174],  # Manizales
+    'RISARALDA': [4.8133, -75.6961],  # Pereira
+    'QUINDIO': [4.5350, -75.6756],  # Armenia
+    'CAQUETÁ': [1.6146, -75.6062],  # Florencia
+    'CÓRDOBA': [8.7500, -75.8833],  # Montería
+    'SUCRE': [9.3000, -75.4000],  # Sincelejo
+    'SAN ANDRÉS': [12.5847, -81.7006],  # San Andrés
+    'ARAUCA': [7.0903, -70.7617],  # Arauca
+    'CASANARE': [5.7278, -71.2578],  # Yopal
+    'PUTUMAYO': [1.1486, -76.6304],  # Mocoa
+    'LA GUAJIRA': [11.5444, -72.9072],  # Riohacha
+}
+
+# Preparar datos para el mapa de calor
+heat_data = []
+for _, row in delitos_por_depto.iterrows():
+    depto = row['DEPARTAMENTO_HECHO']
+    if depto in depto_coords:
+        lat, lon = depto_coords[depto]
+        heat_data.append([lat, lon, row['TOTAL_PROCESOS']])
+
+# Crear mapa centrado en Colombia
+m = folium.Map(location=[4.5709, -74.2973], zoom_start=6)
+
+# Añadir capa de calor
+HeatMap(heat_data,
+        radius=25,
+        blur=15,
+        max_zoom=13,
+        min_opacity=0.5,
+        max_val=delitos_por_depto['TOTAL_PROCESOS'].max()).add_to(m)
+
+# Añadir marcadores con información
+#for depto, (lat, lon) in depto_coords.items():
+#    total = delitos_por_depto[delitos_por_depto['DEPARTAMENTO_HECHO'] == depto]['TOTAL_PROCESOS'].values
+#    if len(total) > 0:
+#        folium.Marker(
+#            location=[lat, lon],
+#            popup=f"<b>{depto.title()}</b><br>Delitos: {total[0]}",
+#            icon=folium.Icon(color='blue', icon='info-sign')
+#        ).add_to(m)
+
+# Mostrar el mapa directamente en Colab
+display(m)
+
+# Opcional: Guardar el mapa para descargarlo
+#m.save('mapa_calor_delitos_por_departamento.html')
+#files.download('mapa_calor_delitos_por_departamento.html')
+
+
+#GRAFICO DE DENUNCIAS POR AÑO
+
+
+from matplotlib.lines import Line2D
+# Limpiar datos
+df['AÑO_DENUNCIA'] = pd.to_numeric(df['AÑO_DENUNCIA'], errors='coerce')
+df['AÑO_HECHOS'] = pd.to_numeric(df['AÑO_HECHOS'], errors='coerce')
+df['AÑO_ENTRADA'] = pd.to_numeric(df['AÑO_ENTRADA'], errors='coerce')
+df_clean = df.dropna(subset=['AÑO_DENUNCIA', 'AÑO_HECHOS', 'AÑO_ENTRADA'])
+
+# Crear figura 3D
+fig = plt.figure(figsize=(10,7))
+ax = fig.add_subplot(111, projection='3d')
+
+# Definir ejes con datos limpios
+x = df['AÑO_DENUNCIA']
+y = df['AÑO_HECHOS']
+z = df['AÑO_ENTRADA']
+
+# Mapeo de colores (asegúrate de que las claves coincidan con tus datos)
+species_colors = {
+    'Indagación': 'r',
+    'Juicio': 'g',
+    'Ejecución de penas': 'b',
+    'Investigación': 'm',
+    'Terminación anticipada': 'y'
+}
+colors = df['ETAPA_CASO'].map(species_colors)
+
+# Gráfico de dispersión
+ax.scatter(x, y, z, c=colors, s=60)
+
+# Etiquetas y título
+ax.set_xlabel('AÑO_DENUNCIA')
+ax.set_ylabel('AÑO_HECHOS')
+ax.set_zlabel('AÑO_ENTRADA')
+ax.set_title('Relación entre años de denuncia, hechos y entrada')
+legend_elements = [Line2D([0], [0], marker='o', color='w', label=key,
+                   markerfacecolor=val, markersize=10) for key, val in species_colors.items()]
+ax.legend(handles=legend_elements, title='Etapas del Caso')
+plt.show()
+
+
+#GRAFICA CON PLOTY
+
+fig = px.scatter(
+    x=df['AÑO_HECHOS'],
+    y=df['AÑO_ENTRADA'],
+    color=df['ETAPA_CASO'],
+    title='Grafico de Dispersion con Plotly',
+    labels= {'x':'Año del delito', 'y':'Año de la denuncia del delito'}
+)
+fig.show()
+
+
+#GRAFICA DE MARCADORES
+
+x , y =df['AÑO_HECHOS'] , df['AÑO_ENTRADA']
+plt.plot(x,y, alpha = 0.7, marker ="o", linestyle="-")
+plt.xlabel('Año del delito')
+plt.ylabel('Año de la denuncia del delito')
+plt.grid(True, color="0.1")
 plt.show()
