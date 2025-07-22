@@ -1,0 +1,240 @@
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
+
+url = 'https://raw.githubusercontent.com/JuanJDCR/For-i-in-datacraks/refs/heads/main/Delitos_Informaticos_V1_20250714.csv'
+data = pd.read_csv(url)
+data
+
+#Eliminamos todos los NA
+data = data.dropna()
+data.info()
+
+# Capitalizar valores
+for col in data.select_dtypes(include='object').columns:
+    data[col] = data[col].str.capitalize()
+
+
+#Eliminando las filas repetidas
+print(f'Tamaño del set antes de eliminar las filas repetidas: {data.shape}')
+data.drop_duplicates(inplace=True)
+print(f'Tamaño del set después de eliminar las filas repetidas: {data.shape}')
+
+#No habian filas repetidas.
+
+# Boxplot para las variables numéricas (vertical)
+for col in data.select_dtypes(include=['number']).columns:
+    plt.figure(figsize=(8, 6))
+    sns.boxplot(y=data[col])
+    plt.title(f'Boxplot de {col}')
+    plt.ylabel(col)
+    plt.show()
+
+    #Hay un registro cerca del 2010, debido a que el valor esta dos desviaciones estandar por fuera de los datos, habrá que analizarlo para ver si es un registro real o algun outlier!!!
+
+
+#Pasando todo a un dataset
+
+#Definimos el DataFrame
+df = pd.DataFrame(data)
+df
+
+#Evaluando si un valor que pensamos que era outlier segun la grafica anterior en realidad es un dato correcto o no
+contador = 0
+for i in range(len(df)):
+  if df['AÑO_HECHOS'][i] == 2010:
+    contador+=1
+    print(df.loc[i])
+    print(contador)
+#Al parecer el año 2010 se repite varias veces en el dataset y es el año mas pequeño, por lo que
+# podemos afirmar que en las columnas con variables numericas no hay outliers!
+
+
+
+#Cuantas variables son categoricas y cuantas no?
+
+
+for col in df.columns:
+  if df[col].dtype == 'int64' or df[col].dtype == 'float64':
+    print(df[col])
+
+
+#Una funcion que clasifica las columnas en numericas, categoricas y alfanumericas
+
+# Clasificación
+def arreglo_clasificacion(df):
+  tipos = {
+    "numericas": [],
+    "categoricas": [],
+    "alfanumericas": [],
+    "fechas": [],
+    "otros": []}
+  for col in df.columns:
+      tipo = df[col].dtype
+
+      if pd.api.types.is_numeric_dtype(df[col]):
+          tipos["numericas"].append(col)
+      elif pd.api.types.is_categorical_dtype(df[col]) or df[col].nunique() < 20:
+         tipos["categoricas"].append(col)
+      elif pd.api.types.is_string_dtype(df[col]):
+          if df[col].str.contains(r'\d', regex=True).any():  # contiene números y letras
+              tipos["alfanumericas"].append(col)
+          else:
+              tipos["categoricas"].append(col)
+      elif pd.api.types.is_datetime64_any_dtype(df[col]):
+          tipos["fechas"].append(col)
+      else:
+          tipos["otros"].append(col)
+    # Mostrar resultados
+  return tipos
+  for categoria, columnas in tipos.items():
+      print(f"{categoria.upper()}: {columnas}")
+
+arreglo_clasificacion(df)
+
+
+
+
+
+Convirtiendo todas las columnas con numericos a verdaderos numericos
+
+¿Que son numericos y verdaderos numericos en este contexto?
+
+Los numericos son columnas que en su mayoria tienen numeros pero pueden haber errores como s/d o Na
+
+Los verdaderos numericos son columnas de datos que siguen teniendo los mismos numeros pero cualquier error ha sido convertido a "NaN", y asi, todos los posibles errores han sido normalizados para su posterior analisis
+
+Los numericos son columnas que en su mayoria tienen numeros pero pueden haber errores como s/d o Na
+
+errors="coerce" convierte cualquier valor inválido (por ejemplo "S/D", "NA") en NaN
+
+El tipo final será float64 (porque NaN no existe para int, aunque sean años)
+
+
+
+
+#Convirtiendo en el DataFrame original los valores numericos a verdaderos numericos
+df["AÑO_ENTRADA"] = pd.to_numeric(df["AÑO_ENTRADA"], errors="coerce")
+df["AÑO_DENUNCIA"] = pd.to_numeric(df["AÑO_DENUNCIA"], errors="coerce")
+df["AÑO_HECHOS"] = pd.to_numeric(df["AÑO_DENUNCIA"], errors="coerce")
+df["TOTAL_PROCESOS"] = pd.to_numeric(df["AÑO_DENUNCIA"], errors="coerce")
+
+
+
+# Y si volvemos a aplicar la categorizacion:
+
+arreglo_clasificacion(df)
+
+#Notemos que la clasificacion ahora si introduce columnas ya modificadas a numericos verdaderos a la clave de columnas numericas.
+
+
+cols_cat = ['CRIMINALIDAD', 'ESTADO', 'ETAPA_CASO', 'PAÍS_HECHO', 'DEPARTAMENTO_HECHO', 'MUNICIPIO_HECHO', 'SECCIONAL', 'DELITO', 'GRUPO_DELITO', 'CONSUMADO']
+for col in cols_cat:
+  print(f'Columna {col}: {data[col].nunique()} subniveles' )
+
+
+
+#Codigo que arregla los errores en las variables categoricas
+
+import unicodedata
+from collections import defaultdict
+
+# Función para quitar tildes, conservar la ñ
+valores_columnas = []
+for i in df.columns:
+  valores_columnas.append(df[i])
+
+def quitar_tildes_conservando_enie(valores_columnas):
+    if not isinstance(valores_columnas, str):
+        return valores_columnas
+    valores_columnas = valores_columnas.replace('ñ', '__enie__').replace('Ñ', '__ENIE__')
+    valores_columnas = unicodedata.normalize('NFD', valores_columnas)
+    valores_columnas = ''.join(c for c in valores_columnas if unicodedata.category(c) != 'Mn')
+    return valores_columnas.replace('__enie__', 'ñ').replace('__ENIE__', 'Ñ')
+
+quitar_tildes_conservando_enie(valores_columnas)
+
+# Función principal
+def detectar_y_cambiar_errores(df, columnas_categoricas):
+    for col in columnas_categoricas:
+        print(f"\n🔍 Analizando columna: {col}")
+
+        # Normalización
+        col_original = df[col].astype(str)
+        col_limpia = col_original.str.strip().str.lower().apply(quitar_tildes_conservando_enie)
+
+        # Construir mapa de normalizado → [originales]
+        normalizado_a_originales = defaultdict(list)
+        for original, limpio in zip(col_original, col_limpia):
+            normalizado_a_originales[limpio].append(original)
+
+        # Crear mapa de reemplazo: normalizado → versión más frecuente
+        reemplazos = {}
+        for normalizado, lista in normalizado_a_originales.items():
+            frecuencia = pd.Series(lista).value_counts()
+            version_oficial = frecuencia.idxmax()
+            if len(frecuencia) > 1:
+                print(f"⚠️ Posible error tipográfico: {list(frecuencia.index)} → Se usará: '{version_oficial}'")
+            reemplazos.update({val: version_oficial for val in frecuencia.index})
+
+        # Aplicar corrección
+        df[col] = df[col].map(reemplazos)
+
+    print("\n✅ Limpieza completada.")
+    return df
+detectar_y_cambiar_errores(df, columnas_categoricas)
+
+
+#Aplicandolo al dataframe original:
+contadore = 0
+for col in df.columns:
+  contadore+=1
+  if df[col].dtype == 'object':
+    df[col] = df[col].apply(quitar_tildes_conservando_enie)
+
+
+
+columnas_categoricas = ['CRIMINALIDAD', 'ESTADO', 'ETAPA_CASO', 'PAÍS_HECHO', 'DEPARTAMENTO_HECHO', 'MUNICIPIO_HECHO', 'SECCIONAL', 'DELITO', 'GRUPO_DELITO', 'CONSUMADO']
+
+for col in columnas_categoricas:
+  if df[col].dtype == "int64" or df[col].dtype == "float64":
+    print("HAY UN ERROR EN EL CODIGO, VUELVA A CORRER LOS BLOQUES ANTERIORES NECESARIOS")
+    print(f"La columna {df[col]} contiene valores numericos, mas especificamente valores tipo {df[col].dtype} ")
+
+#Con esto verificamos que no hay ningun valor numerico en las columnas categoricas.
+
+
+contadore = 0
+for col1 in df["MUNICIPIO_HECHO"]:
+  contadore +=1
+  if col1 == "Chimá":
+    print("HAY UN ERROR EN EL CODIGO, VUELVA A CORRER LOS BLOQUES ANTERIORES NECESARIOS")
+    print(contadore)
+    print(col1)
+    print(df.iloc[contadore])
+#Con esta prueba damos por hecho de que en las variables categoricas no hay valores con tildes.
+
+
+columnas_numericas = ["AÑO_ENTRADA", "AÑO_DENUNCIA", "AÑO_HECHOS", "TOTAL_PROCESOS"]
+
+for i in columnas_numericas:
+  if df[i].dtype == "object":
+    print("HAY UN ERROR EN EL CODIGO, VUELVA A CORRER LOS BLOQUES ANTERIORES NECESARIOS")
+    print(f"La columna {df[i]} contiene valores no numericos, mas especificamente valores tipo {df[i].dtype} ")
+for z in columnas_numericas:
+  if df[z].dtype == "int64" or df[z].dtype == "float64":
+    print("HAY UN ERROR EN EL CODIGO, VUELVA A CORRER LOS BLOQUES ANTERIORES NECESARIOS")
+    print(f"La columna {df[i]} contiene valores numericos, mas especificamente valores tipo {df[i].dtype} ")
+#Con esto verificamos que las columnas numericas no tienen datos tipo object, asi que ya los podemos trabajar estadisticamente sin problema alguno.
+
+
+
+# Histograma para las variables numéricas
+
+plt.figure(figsize=(8, 6))
+sns.histplot(df['AÑO_ENTRADA'], kde=True,)
+plt.title('Registro de entrada de Denuncias realizadas')
+plt.xlabel('Año de la denuncia')
+plt.ylabel('Numero de denuncias')
+plt.show()
